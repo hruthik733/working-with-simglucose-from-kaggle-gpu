@@ -127,75 +127,41 @@
 
 
 
-# agents/sac_agent2.py (GPU VERSION)
+'''agents/sac_agent2.py (GPU VERSION)'''
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 
+
+
+# --- Network Definitions (No changes needed here) ---
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var):
         super(Critic, self).__init__()
-        # Layer 1
         self.layer_1 = nn.Linear(state_dim + action_dim, n_latent_var)
-        self.norm_1 = nn.LayerNorm(n_latent_var)
-        # Layer 2
         self.layer_2 = nn.Linear(n_latent_var, n_latent_var)
-        self.norm_2 = nn.LayerNorm(n_latent_var)
-        # Layer 3 (New)
-        self.layer_3 = nn.Linear(n_latent_var, n_latent_var)
-        self.norm_3 = nn.LayerNorm(n_latent_var)
-        # Output Layer
-        self.output_layer = nn.Linear(n_latent_var, 1)
+        self.layer_3 = nn.Linear(n_latent_var, 1)
 
     def forward(self, state, action):
         x = torch.cat([state, action], 1)
-        x = self.layer_1(x)
-        x = self.norm_1(x)
-        x = F.gelu(x)
-        
-        x = self.layer_2(x)
-        x = self.norm_2(x)
-        x = F.gelu(x)
-        
-        x = self.layer_3(x)
-        x = self.norm_3(x)
-        x = F.gelu(x)
-        
-        return self.output_layer(x)
+        x = F.relu(self.layer_1(x))
+        x = F.relu(self.layer_2(x))
+        return self.layer_3(x)
 
-# --- UPDATED Actor Class ---
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var, max_action):
         super(Actor, self).__init__()
-        # Layer 1
         self.layer_1 = nn.Linear(state_dim, n_latent_var)
-        self.norm_1 = nn.LayerNorm(n_latent_var)
-        # Layer 2
         self.layer_2 = nn.Linear(n_latent_var, n_latent_var)
-        self.norm_2 = nn.LayerNorm(n_latent_var)
-        # Layer 3 (New)
-        self.layer_3 = nn.Linear(n_latent_var, n_latent_var)
-        self.norm_3 = nn.LayerNorm(n_latent_var)
-        
         self.mean_layer = nn.Linear(n_latent_var, action_dim)
         self.log_std_layer = nn.Linear(n_latent_var, action_dim)
         self.max_action = max_action
 
     def forward(self, state):
-        x = self.layer_1(state)
-        x = self.norm_1(x)
-        x = F.gelu(x)
-
-        x = self.layer_2(x)
-        x = self.norm_2(x)
-        x = F.gelu(x)
-        
-        x = self.layer_3(x)
-        x = self.norm_3(x)
-        x = F.gelu(x)
-        
+        x = F.relu(self.layer_1(state))
+        x = F.relu(self.layer_2(x))
         mean = self.mean_layer(x)
         log_std = self.log_std_layer(x)
         log_std = torch.clamp(log_std, min=-20, max=2)
@@ -212,50 +178,6 @@ class Actor(nn.Module):
         log_prob -= torch.log(self.max_action * (1 - y_t.pow(2)) + 1e-6)
         log_prob = log_prob.sum(1, keepdim=True)
         return action, log_prob
-
-
-# # --- Network Definitions (No changes needed here) ---
-# class Critic(nn.Module):
-#     def __init__(self, state_dim, action_dim, n_latent_var):
-#         super(Critic, self).__init__()
-#         self.layer_1 = nn.Linear(state_dim + action_dim, n_latent_var)
-#         self.layer_2 = nn.Linear(n_latent_var, n_latent_var)
-#         self.layer_3 = nn.Linear(n_latent_var, 1)
-
-#     def forward(self, state, action):
-#         x = torch.cat([state, action], 1)
-#         x = F.relu(self.layer_1(x))
-#         x = F.relu(self.layer_2(x))
-#         return self.layer_3(x)
-
-# class Actor(nn.Module):
-#     def __init__(self, state_dim, action_dim, n_latent_var, max_action):
-#         super(Actor, self).__init__()
-#         self.layer_1 = nn.Linear(state_dim, n_latent_var)
-#         self.layer_2 = nn.Linear(n_latent_var, n_latent_var)
-#         self.mean_layer = nn.Linear(n_latent_var, action_dim)
-#         self.log_std_layer = nn.Linear(n_latent_var, action_dim)
-#         self.max_action = max_action
-
-#     def forward(self, state):
-#         x = F.relu(self.layer_1(state))
-#         x = F.relu(self.layer_2(x))
-#         mean = self.mean_layer(x)
-#         log_std = self.log_std_layer(x)
-#         log_std = torch.clamp(log_std, min=-20, max=2)
-#         return mean, log_std
-
-#     def sample(self, state):
-#         mean, log_std = self.forward(state)
-#         std = log_std.exp()
-#         normal = Normal(mean, std)
-#         x_t = normal.rsample()
-#         y_t = torch.tanh(x_t)
-#         action = y_t * self.max_action
-#         log_prob = normal.log_prob(x_t)
-#         log_prob -= torch.log(self.max_action * (1 - y_t.pow(2)) + 1e-6)
-#         log_prob = log_prob.sum(1, keepdim=True)
-#         return action, log_prob
 
 # --- SAC Agent Implementation ---
 class SACAgent:
